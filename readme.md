@@ -3,6 +3,8 @@
 ![vmp-lab](image/vmp-lab.png)
 A research-oriented devirtualization tool designed to analyze and progressively recover VMProtect-3.x protected binaries through dynamic tracing and IR-based analysis.  
 
+<br><br><br><br><br><br><br><br>
+
 
 ## Introduction
 A research-driven toolchain for dynamically tracing, semantically analyzing, and devirtualizing binaries protected by VMProtect 3. This project is the practical implementation that grew out of hands-on research into VMProtect's virtualization internals, documented in the writeup [VMProtect Devirtualization: Part 2](https://hackyboiz.github.io/2025/12/11/banda/VMPpart2/en/).
