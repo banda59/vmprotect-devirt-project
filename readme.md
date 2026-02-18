@@ -3,7 +3,7 @@
 ![vmp-lab](image/vmp-lab.png)
 A research-oriented devirtualization tool designed to analyze and progressively recover VMProtect-3.x protected binaries through dynamic tracing and IR-based analysis.  
 
-<br><br><br><br><br><br><br><br>
+<br><br><br><br>
 
 
 ## Introduction
