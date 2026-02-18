@@ -10,7 +10,6 @@ A research-oriented devirtualization tool designed to analyze and progressively 
 A research-driven toolchain for dynamically tracing, semantically analyzing, and devirtualizing binaries protected by VMProtect 3. This project is the practical implementation that grew out of hands-on research into VMProtect's virtualization internals, documented in the writeup [VMProtect Devirtualization: Part 2](https://hackyboiz.github.io/2025/12/11/banda/VMPpart2/en/).
 
 <br>
----
 
 ## Background
 
@@ -28,7 +27,6 @@ The approach taken in this project, and the research it is based on, treats devi
 VMP-DEVIRT-LAB provides tooling for all four stages.
 
 <br>
----
 
 ## Repository Structure
 
@@ -55,7 +53,6 @@ VMP-DEVIRT-LAB/
 ```
 
 <br>
----
 
 ## Components
 
@@ -143,7 +140,7 @@ pin.exe -t pin\vmp-devirt-lab\obj-intel64\MyPinTool.dll ^
 | `-h_tool 1` | — | Print usage and exit |
 
 <br>
----
+
 
 ### TraceAnalyze.py — Trace Parser and Semantic Analyzer
 
@@ -204,7 +201,7 @@ Results are written to `semantics.json` and consumed by `devirtualizer.py`.
 **Polymorphic handler clustering** (`cluster_handlers_by_semantics`) groups handlers that share identical semantic signatures — same operation class, same I/O register sets, same stack delta, same memory access counts — even if they sit at different addresses or contain different junk instruction sequences. VMProtect commonly generates multiple polymorphic copies of the same logical handler to defeat simple address-based pattern matching, and this clustering identifies and consolidates them before code reconstruction.
 
 <br>
----
+
 
 ### devirtualizer.py — Code Reconstructor and Binary Patcher
 
@@ -261,7 +258,7 @@ The full reconstruction pipeline runs as follows:
 9. Write a `.report.txt` alongside the patched binary summarizing handler mappings, call counts, and the first 50 reconstructed instructions
 
 <br>
----
+
 
 ## Full Workflow
 
@@ -381,7 +378,7 @@ python devirtualizer.py                    \
 ```
 
 <br>
----
+
 
 ## Devirtualize-Test Challenges
 ![vmp-lab](image/vmp-chall.png)  
@@ -421,7 +418,7 @@ Note: the original unpatched binary also prints this message when `1` is pressed
 More levels with additional VMProtect protection layers (mutation, obfuscation, anti-debug) are planned for future releases.
 
 <br>
----
+
 
 ## Requirements
 
@@ -435,7 +432,7 @@ More levels with additional VMProtect protection layers (mutation, obfuscation, 
 | OS | Windows — Pin tool instruments Windows PE binaries |
 
 <br>
----
+
 
 ## References
 I am deeply grateful to the references that provided invaluable guidance and support throughout my research!  
@@ -450,7 +447,7 @@ I am deeply grateful to the references that provided invaluable guidance and sup
 - [Tickling VMProtect with LLVM: Part 3](https://secret.club/2021/09/08/vmprotect-llvm-lifting-3.html)
 
 <br>
----
+
 
 ## Author
 
