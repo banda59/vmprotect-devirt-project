@@ -1,7 +1,10 @@
-# VMP-DEVIRT-LAB
+# VMProtect Devirtualization project
 
 ![vmp-lab](image/vmp-lab.png)
+A research-oriented devirtualization tool designed to analyze and progressively recover VMProtect-3.x protected binaries through dynamic tracing and IR-based analysis.  
 
+
+## Introduction
 A research-driven toolchain for dynamically tracing, semantically analyzing, and devirtualizing binaries protected by VMProtect 3. This project is the practical implementation that grew out of hands-on research into VMProtect's virtualization internals, documented in the writeup [VMProtect Devirtualization: Part 2](https://hackyboiz.github.io/2025/12/11/banda/VMPpart2/en/).
 
 ---
@@ -262,10 +265,11 @@ In IDA or Binary Ninja, the VM entry is usually the last address that the decomp
 
 Once you have that address, proceed:
 
-### x86 (32-bit) Workflow
+## x86 (32-bit) Workflow
 
+
+### Step 1: First pass with auto-detection to discover handler candidates
 ```
-# Step 1: First pass with auto-detection to discover handler candidates
 pin.exe -t pin\vmp-devirt-lab\obj-ia32\MyPinTool.dll ^
     -entry 0x<vm_entry> -auto 1                      ^
     -o vmp_trace.txt -bc vmp_bytecode.csv            ^
@@ -275,8 +279,10 @@ pin.exe -t pin\vmp-devirt-lab\obj-ia32\MyPinTool.dll ^
 # Review vmp_analysis.txt -> recommended_handlers_option
 # This section contains a pre-formatted -handlers argument
 # listing addresses that were frequently jumped or called into
+```
 
-# Step 2: Second pass with explicit handler list for a complete annotated trace
+### Step 2: Second pass with explicit handler list for a complete annotated trace
+```
 pin.exe -t pin\vmp-devirt-lab\obj-ia32\MyPinTool.dll         ^
     -entry 0x<vm_entry>                                       ^
     -handlers 0x<h1>,0x<h2>,0x<h3>,...                       ^
@@ -284,20 +290,26 @@ pin.exe -t pin\vmp-devirt-lab\obj-ia32\MyPinTool.dll         ^
     -trackmem 1 -mem vmp_mem.csv                             ^
     -analysis vmp_analysis.txt                               ^
     -- "[level01-x86] vmp-lab.vmp.exe"
+```
 
-# Step 3: Inspect the trace — understand handler call frequency and bytecode patterns
+### Step 3: Inspect the trace — understand handler call frequency and bytecode patterns
+```
 python TraceAnalyze.py summary \
     --trace vmp_trace.txt      \
     --bytecode vmp_bytecode.csv
+```
 
-# Step 4: Extract handler semantics via Triton symbolic execution
+### Step 4: Extract handler semantics via Triton symbolic execution
+```
 python TraceAnalyze.py semantics        \
     --trace vmp_trace.txt               \
     --bytecode vmp_bytecode.csv         \
     --arch x86                          \
     --out-json semantics.json
+```
 
-# Step 5: Reconstruct native code and patch the binary
+### Step 5: Reconstruct native code and patch the binary
+```
 python devirtualizer.py                    \
     --orig "[level01-x86] vmp-lab.vmp.exe" \
     --trace vmp_trace.txt                  \
@@ -309,17 +321,19 @@ python devirtualizer.py                    \
     --arch x86
 ```
 
-### x64 (64-bit) Workflow
+## x64 (64-bit) Workflow
 
+### Step 1: Auto-detect handlers
 ```
-# Step 1: Auto-detect handlers
 pin.exe -t pin\vmp-devirt-lab\obj-intel64\MyPinTool.dll ^
     -entry 0x<vm_entry> -auto 1                         ^
     -o vmp_trace.txt -bc vmp_bytecode.csv               ^
     -analysis vmp_analysis.txt                          ^
     -- "[level01-x64] vmp-lab.vmp.exe"
+```
 
-# Step 2: Explicit handler trace
+### Step 2: Explicit handler trace
+```
 pin.exe -t pin\vmp-devirt-lab\obj-intel64\MyPinTool.dll      ^
     -entry 0x<vm_entry>                                       ^
     -handlers 0x<h1>,0x<h2>,0x<h3>,...                       ^
@@ -327,20 +341,26 @@ pin.exe -t pin\vmp-devirt-lab\obj-intel64\MyPinTool.dll      ^
     -trackmem 1 -mem vmp_mem.csv                             ^
     -analysis vmp_analysis.txt                               ^
     -- "[level01-x64] vmp-lab.vmp.exe"
+```
 
-# Step 3: Trace summary
+### Step 3: Trace summary
+```
 python TraceAnalyze.py summary \
     --trace vmp_trace.txt      \
     --bytecode vmp_bytecode.csv
+```
 
-# Step 4: Semantic extraction
+### Step 4: Semantic extraction
+```
 python TraceAnalyze.py semantics        \
     --trace vmp_trace.txt               \
     --bytecode vmp_bytecode.csv         \
     --arch x64                          \
     --out-json semantics.json
+```
 
-# Step 5: Patch
+### Step 5: Patch
+```
 python devirtualizer.py                    \
     --orig "[level01-x64] vmp-lab.vmp.exe" \
     --trace vmp_trace.txt                  \
@@ -355,6 +375,7 @@ python devirtualizer.py                    \
 ---
 
 ## Devirtualize-Test Challenges
+![vmp-lab](image/vmp-chall.png)  
 
 The `devirtualize-test/` directory contains binaries built with VMProtect Demo for Windows version 3.10.3, with virtualization applied and no other protections enabled. They exist so you can practice the complete pipeline on a known, controlled target before attempting real-world samples.
 
@@ -412,7 +433,10 @@ I am deeply grateful to the references that provided invaluable guidance and sup
 - [VMProtect-devirtualization — Jonathan Salwan](https://github.com/JonathanSalwan/VMProtect-devirtualization) — reference implementation that informed the Triton-based semantic analysis approach
 - [Intel Pin — Dynamic Binary Instrumentation Tool](https://software.intel.com/content/www/us/en/develop/articles/pin-a-dynamic-binary-instrumentation-tool.html)
 - [Triton — Dynamic Binary Analysis Framework](https://triton-library.github.io/)
-
+- [Quick look around VMP 3.x - Part 1 : Unpacking](https://whereisr0da.github.io/blog/posts/2021-01-05-vmp-1/)
+- [Tickling VMProtect with LLVM: Part 1](https://secret.club/2021/09/08/vmprotect-llvm-lifting-1.html)
+- [Tickling VMProtect with LLVM: Part 2](https://secret.club/2021/09/08/vmprotect-llvm-lifting-2.html)
+- [Tickling VMProtect with LLVM: Part 3](https://secret.club/2021/09/08/vmprotect-llvm-lifting-3.html)
 ---
 
 ## Author
