@@ -1,0 +1,97 @@
+#!/bin/bash
+#
+# Usage:
+# pin-clang-ld [ -static ] [ -lib | -dll ] <other_args>
+# where -static means binary image is built using set of pinrt archive libraries (static linking),
+#   otherwise by default pinrt import library pincrt4.lib is used (dynamic linking);
+# -lib means to build an archive library;
+# -dll means to build DLL binary image;
+# no -lib or -dll means to build executable binary image (.exe).
+
+case $(uname -s) in
+    CYGWIN*)
+        script_env=Cygwin
+        ;;
+    MINGW*)
+        ;&
+    MSYS_NT*)
+        script_env=Mingw
+        ;;
+    *)
+        echo "Unknown running environment $(uname -s)"
+        exit 1
+        ;;
+esac
+thisdir=`cd "$(dirname "$0")"; pwd`
+thisdir=`cygpath -m $thisdir`
+
+libdir=$thisdir/../lib
+
+pinrtlibs=(pincrt4.lib)
+linkargs=()
+ldmode=
+crtbeginname=crtbegin
+is_archive=0
+is_static=0
+is_dll=0
+is_cxx=0
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -static)
+            pinrtlibs=(clang_rt.builtins-x86_64.lib compiler-rt.lib pincrt.lib pinos.lib rscproto.lib)
+            is_static=1
+            shift
+            ;;
+        -lib)
+            ldmode=-lib
+            crtbeginname=
+            is_archive=1
+            shift
+            ;;
+        -dll)
+            ldmode=-dll
+            crtbeginname=crtbeginS
+            is_dll=1
+            shift
+            ;;
+        -c++)
+            is_cxx=1
+            shift
+            ;;
+        *)
+        linkargs+=("$1")
+        shift
+        ;;
+    esac
+done
+
+if [[ $is_dll -eq 1 && $is_lib -eq 1 ]]; then
+    echo "Cannot specify both -lib and -dll"
+    exit 1
+fi
+
+if [[ $is_archive -eq 1 ]]; then
+    startfiles=()
+else
+    startfiles=("${libdir}/${crtbeginname}.obj")
+    if [[ $is_cxx -eq 1 ]]; then
+        startfiles+=(stdlib_new_delete.obj)
+        pinrtlibs=(c++.lib "${pinrtlibs[@]}")
+    fi
+fi
+
+if [ "$script_env" = "Cygwin" ]; then
+    linkargs+=( /machine:x64 /nologo /NODEFAULTLIB /SAFESEH:NO /subsystem:console)
+    if [[ $is_static -eq 1 ]]; then
+        pinrtlibs=(/WHOLEARCHIVE:pincrt.lib "${pinrtlibs[@]}")
+    fi
+elif [ "$script_env" = "Mingw" ]; then
+    linkargs+=(//machine:x64 //nologo //NODEFAULTLIB //SAFESEH:NO //subsystem:console)
+    if [[ $is_static -eq 1 ]]; then
+        pinrtlibs=(//WHOLEARCHIVE:pincrt.lib "${pinrtlibs[@]}")
+    fi
+fi
+
+PIN_WRAPPER_LINKER="${PIN_WRAPPER_LINKER:=lld-link}"
+
+exec "$PIN_WRAPPER_LINKER" "$ldmode" -libpath:"$libdir" "${startfiles[@]}" "${pinrtlibs[@]}" "${linkargs[@]}"

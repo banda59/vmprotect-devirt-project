@@ -1,0 +1,33 @@
+#!/bin/bash
+
+declare -a isystem=( ${ISYSTEM:="-Xclang -internal-isystem -Xclang"} )
+
+case $(uname -s) in
+    CYGWIN*)
+        script_env=Cygwin
+        ;;
+    MINGW*)
+        ;&
+    MSYS_NT*)
+        script_env=Mingw
+        ;;
+    *)
+        echo "Unknown running environment $(uname -s)"
+        exit 1
+        ;;
+esac
+
+thisdir=`cd "$(dirname "$0")"; pwd`
+thisdir=`cygpath -m $thisdir`
+incdir=$thisdir/../include
+
+CXXINCLUDES=("${isystem[@]}" "$incdir/c++")
+CXXDEF=(-D_LIBCPP_HAS_MUSL_LIBC -D_LIBCPP_NO_VCRUNTIME -D_LIBCPP_DISABLE_AVAILABILITY -D_GNU_SOURCE)
+
+if [ "$script_env" = "Cygwin" ]; then
+    CXXCOMPILEFLAGS=(/GR- /Zc:threadSafeInit- /wd5208)
+elif [ "$script_env" = "Mingw" ]; then
+    CXXCOMPILEFLAGS=(//GR- //Zc:threadSafeInit- //wd5208)
+fi
+
+exec "$thisdir/pin-clang-cl" "${CXXDEF[@]}" "${CXXCOMPILEFLAGS[@]}" "$@" "${CXXINCLUDES[@]}"

@@ -1,0 +1,9 @@
+#!/bin/bash
+
+thisdir=`cd "$(dirname "$0")"; pwd`
+thisdir=`cygpath -m $thisdir`
+
+export PIN_WRAPPER_COMPILER="${PIN_WRAPPER_COMPILER:=icx-cl}"
+export ISYSTEM="-I"
+
+exec "$thisdir/pin-clang-cl" "$@"

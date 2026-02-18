@@ -1,0 +1,49 @@
+#!/bin/bash
+
+declare -a isystem=( ${ISYSTEM:="-Xclang -internal-isystem -Xclang"} )
+
+case $(uname -s) in
+    CYGWIN*)
+        script_env=Cygwin
+        ;;
+    MINGW*)
+        ;&
+    MSYS_NT*)
+        script_env=Mingw
+        ;;
+    *)
+        echo "Unknown running environment $(uname -s)"
+        exit 1
+        ;;
+esac
+
+thisdir=`cd "$(dirname "$0")"; pwd`
+thisdir=`cygpath -m $thisdir`
+
+incdir=$thisdir/../include
+longtype="long"
+
+DEFS=(-DPIN_CRT=1 -DPIN_RT "-D_arch_long=$longtype")
+PINRT_INCLUDES=("${isystem[@]}" "$incdir" "${isystem[@]}" "$incdir/pinos")
+
+PIN_WRAPPER_COMPILER="${PIN_WRAPPER_COMPILER:=clang-cl}"
+
+if [ "$script_env" = "Cygwin" ]; then
+    DEFS+=(-DTARGET_WINDOWS)
+    ENV_AFFECTED_COMPILE_FLAGS=(/GS- /EHa- /EHs- /EHc- /Oi- /Gy /wd4530)
+elif [ "$script_env" = "Mingw" ]; then
+    DEFS+=(-DTARGET_WINDOWS)
+    ENV_AFFECTED_COMPILE_FLAGS=(//GS- //EHa- //EHs- //EHc- //Oi- //Gy //wd4530)
+fi
+
+WIN_SYS_INCLUDE=()
+if [ -n "$INCLUDE" ]; then
+    IFS=$';' WIN_INCLUDE=($(echo "$INCLUDE"))
+    WIN_INCLUDE=(${WIN_INCLUDE[@]//\\/\/})
+
+    for inc in "${WIN_INCLUDE[@]}"; do
+        WIN_SYS_INCLUDE+=("${isystem[@]}" "$inc")
+    done
+fi
+
+exec "$PIN_WRAPPER_COMPILER" -nologo -m32 -DTARGET_IA32 -DHOST_IA32 -D__i386__ "${DEFS[@]}" "${ENV_AFFECTED_COMPILE_FLAGS[@]}" -fno-builtin -nostdinc "$@" "${PINRT_INCLUDES[@]}" "${WIN_SYS_INCLUDE[@]}"

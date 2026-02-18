@@ -1,0 +1,35 @@
+{
+    "InjectorServer": {
+        "log": false
+    },
+    "RSCServer": {
+        "ThreadPoolCount": 2,
+        "BufferPoolCount": 0,
+        "ServerTxChannelSize": 2228224,
+        "RSCWindowSize": 256,
+        "log": false,
+        "RPCPlugins": [
+            {
+                "lib": "rsc-rpc-plugin.dll",
+                "name": "rsc_rpc_plugin", 
+                "log": false,
+                "//logfilename" : "my_rsc_rpc_plugin.log",
+                "//arguments": [
+                    "dummy_knob1", "1",
+                    "dummy_knob2", "/path/somwhere"
+                ]
+            },
+            {
+                "lib": "rsc-ntdll-bridge-plugin.dll",
+                "name": "rsc-ntdll-bridge-plugin", 
+                "log": false
+            },
+            {
+                "lib": "smserver-plugin.dll",
+                "name": "symbol server plugin",
+                "logfilename": "smserver.log", 
+                "log": false
+            }
+        ]
+    }
+}
