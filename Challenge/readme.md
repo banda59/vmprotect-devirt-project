@@ -1,6 +1,6 @@
 # VMProtect Devirtualization Challenges
 
-![vmp-chall](image/vmp-chall.png)
+![vmp-chall](vmprotect-devirt-project/image/vmp-chall.png)
 
 This repository contains practice binaries for learning and experimenting with VMProtect devirtualization.
 
