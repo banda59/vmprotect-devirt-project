@@ -6,8 +6,6 @@
 #include <vector>
 #include <algorithm>
 
-// ----------------------------------------------------------------------
-// ----------------------------------------------------------------------
 #ifdef TARGET_IA32E
 typedef unsigned long long ADDR_FMT_T;
 #define FMT_ADDR "0x%016llx"
@@ -18,14 +16,10 @@ typedef unsigned int ADDR_FMT_T;
 
 #define FMT_VAL "0x%016llx"
 
-// ----------------------------------------------------------------------
-// ----------------------------------------------------------------------
 static const char *TOOL_NAME = "vmp-devirt-lab";
 static const char *TOOL_AUTHOR = "banda";
 static const char *TOOL_VERSION = "1.3";
 
-// ----------------------------------------------------------------------
-// ----------------------------------------------------------------------
 enum TRACE_STATE
 {
     TRACE_IDLE = 0,
@@ -72,8 +66,6 @@ struct CFEdge
     UINT32 type;
 };
 
-// ----------------------------------------------------------------------
-// ----------------------------------------------------------------------
 FILE *g_trace = 0;
 FILE *g_bc = 0;
 FILE *g_regs = 0;
@@ -105,15 +97,13 @@ std::map<ADDRINT, UINT32> g_jump_targets;
 std::map<ADDRINT, UINT32> g_call_targets;
 
 UINT64 g_cf_events_total = 0;
+PIN_LOCK g_instr_lock;
 UINT64 g_cf_events_cjmp = 0;
 UINT64 g_cf_events_jmp = 0;
 UINT64 g_cf_events_call = 0;
 static UINT64 g_last_auto_check = 0;
 static const UINT64 AUTO_CHECK_INTERVAL = 100000;
 
-// ----------------------------------------------------------------------
-// KNOBs
-// ----------------------------------------------------------------------
 KNOB<std::string> KnobTrace(KNOB_MODE_WRITEONCE, "pintool",
                             "o", "vmp_trace.txt", "instruction trace output file");
 
@@ -153,8 +143,6 @@ KNOB<BOOL> KnobAutoDetect(KNOB_MODE_WRITEONCE, "pintool",
 KNOB<BOOL> KnobToolHelp(KNOB_MODE_WRITEONCE, "pintool",
                         "h_tool", "0", "show vmp-devirt-lab usage and exit");
 
-// ----------------------------------------------------------------------
-// ----------------------------------------------------------------------
 static ThreadState *GetThreadState(THREADID tid)
 {
     return reinterpret_cast<ThreadState *>(PIN_GetThreadData(g_tls_key, tid));
@@ -232,8 +220,7 @@ static void ParseHandlers(const std::string &s)
 
 static void DumpRegs(CONTEXT *ctx, FILE *f, const char *p)
 {
-    if (!f || !ctx)
-        return;
+    if (!f || !ctx) return;
 
     ADDRINT gax = PIN_GetContextReg(ctx, REG_GAX);
     ADDRINT gbx = PIN_GetContextReg(ctx, REG_GBX);
@@ -242,14 +229,14 @@ static void DumpRegs(CONTEXT *ctx, FILE *f, const char *p)
     ADDRINT gsi = PIN_GetContextReg(ctx, REG_GSI);
     ADDRINT gdi = PIN_GetContextReg(ctx, REG_GDI);
     ADDRINT gbp = PIN_GetContextReg(ctx, REG_GBP);
-    ADDRINT sp = PIN_GetContextReg(ctx, REG_STACK_PTR);
-    ADDRINT eflags = PIN_GetContextReg(ctx, REG_EFLAGS);
+    ADDRINT sp  = PIN_GetContextReg(ctx, REG_STACK_PTR);
 
-    fprintf(f, "%sGAX=0x%08x GBX=0x%08x GCX=0x%08x GDX=0x%08x\n",
-            p, (unsigned int)gax, (unsigned int)gbx, (unsigned int)gcx, (unsigned int)gdx);
-    fprintf(f, "%sGSI=0x%08x GDI=0x%08x GBP=0x%08x SP=0x%08x\n",
-            p, (unsigned int)gsi, (unsigned int)gdi, (unsigned int)gbp, (unsigned int)sp);
-    fprintf(f, "%sEFLAGS=0x%08x\n", p, (unsigned int)eflags);
+    fprintf(f, "%sGAX=0x%016llx GBX=0x%016llx GCX=0x%016llx GDX=0x%016llx\n",
+        p, (unsigned long long)gax, (unsigned long long)gbx,
+           (unsigned long long)gcx, (unsigned long long)gdx);
+    fprintf(f, "%sGSI=0x%016llx GDI=0x%016llx GBP=0x%016llx SP=0x%016llx\n",
+        p, (unsigned long long)gsi, (unsigned long long)gdi,
+           (unsigned long long)gbp, (unsigned long long)sp);
 }
 
 static void PrintBanner()
@@ -544,8 +531,6 @@ static VOID RecordMemWrite(THREADID tid, ADDRINT ip, ADDRINT addr, UINT32 size)
     }
 }
 
-// ----------------------------------------------------------------------
-// ----------------------------------------------------------------------
 static VOID RecordCF(ADDRINT from, ADDRINT to, UINT32 t)
 {
     if (!g_has_main)
@@ -584,8 +569,6 @@ static VOID RecordCF(ADDRINT from, ADDRINT to, UINT32 t)
     }
 }
 
-// ----------------------------------------------------------------------
-// ----------------------------------------------------------------------
 static VOID VMEntryNotify(THREADID tid, ADDRINT ip, CONTEXT *ctx)
 {
     if (!g_has_main)
@@ -600,12 +583,14 @@ static VOID VMEntryNotify(THREADID tid, ADDRINT ip, CONTEXT *ctx)
     if (!ts)
         return;
 
-    if (ts->state != TRACE_IDLE)
-        return;
-
     if (g_vm_entry != 0 && ip == g_vm_entry)
     {
+        // TRACE_IDLE이 아니어도 vm_entry에 도달하면 트레이싱을 재시작합니다.
         ts->state = TRACE_RECORDING;
+        ts->seq = 0;
+        ts->last_bc_addr = 0;
+        ts->last_bc = 0;
+        ts->last_bc_valid = FALSE;
         ts->vm_hits++;
 
         if (g_trace)
@@ -628,16 +613,11 @@ static VOID VMEntryNotify(THREADID tid, ADDRINT ip, CONTEXT *ctx)
     }
 }
 
-// ----------------------------------------------------------------------
-// ----------------------------------------------------------------------
 static VOID RecordInstrLite(THREADID tid, ADDRINT ip, UINT32 size)
 {
-    if (!g_has_main)
-        return;
 
-    if (g_stop)
+    if (g_low == 0)
         return;
-
     if (ip < g_low || ip >= g_high)
         return;
 
@@ -648,28 +628,25 @@ static VOID RecordInstrLite(THREADID tid, ADDRINT ip, UINT32 size)
     if (ts->state == TRACE_DONE)
         return;
 
-    if (g_max_instr && g_total_instr >= g_max_instr)
-    {
+    if (ts->state != TRACE_RECORDING)
+        return;
+
+    ts->seq++;
+
+    PIN_GetLock(&g_instr_lock, tid);
+    g_total_instr++;
+    bool do_stop = (g_max_instr > 0 && g_total_instr >= g_max_instr);
+    PIN_ReleaseLock(&g_instr_lock);
+
+    if (do_stop) {
         g_stop = TRUE;
         ts->state = TRACE_DONE;
         return;
     }
 
-    if (ts->state != TRACE_RECORDING)
-        return;
-
-    ts->seq++;
-    g_total_instr++;
-
     if (ts->pend_on && ts->seq >= ts->pend_seq && (ts->seq - ts->pend_seq) > 8)
     {
         ts->pend_on = FALSE;
-    }
-
-    if (g_auto_det && (g_total_instr - g_last_auto_check) > AUTO_CHECK_INTERVAL)
-    {
-        BuildAutoHandlers();
-        g_last_auto_check = g_total_instr;
     }
 
     UINT64 seq = ts->seq;
@@ -677,8 +654,6 @@ static VOID RecordInstrLite(THREADID tid, ADDRINT ip, UINT32 size)
     PrintInstr(seq, ip, size);
 }
 
-// ----------------------------------------------------------------------
-// ----------------------------------------------------------------------
 static VOID PrepareHandlerEntry(THREADID tid, ADDRINT ip)
 {
     if (!g_has_main || g_stop)
@@ -719,37 +694,41 @@ static VOID HandlerEntry(THREADID tid, ADDRINT ip, CONTEXT *ctx)
     HandleHandler(tid, seq, ip, ctx, ts);
 }
 
-// ----------------------------------------------------------------------
-// ----------------------------------------------------------------------
 static VOID ImageLoad(IMG img, VOID *v)
 {
+    // 기존 코드 유지
     if (!IMG_IsMainExecutable(img))
         return;
 
-    g_low = IMG_LowAddress(img);
+    g_low  = IMG_LowAddress(img);
     g_high = IMG_HighAddress(img);
     g_has_main = TRUE;
-
+    
     if (g_trace)
     {
-        fprintf(g_trace,
-                "#image %s " FMT_ADDR " " FMT_ADDR "\n",
+        fprintf(g_trace, "#image %s " FMT_ADDR " " FMT_ADDR "\n",
                 IMG_Name(img).c_str(),
                 (ADDR_FMT_T)g_low,
                 (ADDR_FMT_T)g_high);
     }
 }
-
 // ----------------------------------------------------------------------
 // ----------------------------------------------------------------------
 static VOID Instruction(INS ins, VOID *v)
 {
-    if (!g_has_main)
+    ADDRINT ip = INS_Address(ins);
+    // JIT-time 최적화: 주 이미지 범위가 이미 알려진 경우, 그 밖의 코드는 인스트루멘테이션을 건너뜁니다.
+    // g_low가 0이면(아직 모를 때) 모든 코드를 인스트루멘테이션하고 런타임에 필터링합니다.
+    if (g_low != 0 && (ip < g_low || ip >= g_high))
         return;
 
-    ADDRINT ip = INS_Address(ins);
-    if (ip < g_low || ip >= g_high)
-        return;
+    // RDTSC 우회 코드는 PIN_ExecuteAt() 호출로 인해 불안정성을 유발할 수 있으므로 비활성화합니다.
+    // if (INS_IsRDTSC(ins))
+    // {
+    //     INS_InsertCall(ins, IPOINT_AFTER, (AFUNPTR)MyRdtscCallback,
+    //                    IARG_CONTEXT,
+    //                    IARG_END);
+    // }
 
     if (g_vm_entry != 0 && ip == g_vm_entry)
     {
@@ -1120,7 +1099,8 @@ static VOID Fini(INT32 code, VOID *v)
 static VOID ThreadStart(THREADID tid, CONTEXT *ctx, INT32 flags, VOID *v)
 {
     ThreadState *ts = new ThreadState;
-    ts->state = TRACE_IDLE;
+    // -entry 옵션이 없으면(g_vm_entry == 0) 처음부터 트레이싱을 시작합니다.
+    ts->state = (g_vm_entry == 0) ? TRACE_RECORDING : TRACE_IDLE;
     ts->seq = 0;
     ts->last_bc_addr = 0;
     ts->last_bc = 0;
@@ -1187,6 +1167,8 @@ int main(int argc, char *argv[])
         PrintUsage();
         return 1;
     }
+
+    PIN_InitLock(&g_instr_lock);
 
     g_vm_entry = KnobVMEntry.Value();
     g_max_instr = KnobMaxInstr.Value();
