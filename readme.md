@@ -379,47 +379,6 @@ python devirtualizer.py                    \
 
 <br>
 
-
-## Devirtualize-Test Challenges
-![vmp-lab](image/vmp-chall.png)  
-
-The `devirtualize-test/` directory contains binaries built with VMProtect Demo for Windows version 3.10.3, with virtualization applied and no other protections enabled. They exist so you can practice the complete pipeline on a known, controlled target before attempting real-world samples.
-
-### Level 01
-
-| File | Architecture |
-|---|---|
-| `[level01-x64] vmp-lab.vmp.exe` | x86-64 |
-| `[level01-x86] vmp-lab.vmp.exe` | x86 (32-bit) |
-
-**Program behavior**
-
-When launched, the binary renders an image window. Two keys are active:
-
-- `ESC` — close the program
-- `1` — invoke the internal `verify_key` function
-
-`verify_key` is the function protected by VMProtect virtualization. When it computes the expected result, a success message is printed.
-
-**Objective**
-
-Analyze the virtualized `verify_key` function, recover its original logic, and patch the binary so that the devirtualized code runs in place of the VMProtect interpreter. If the patch is correct, pressing `1` will still produce the success message — without going through the VM engine.
-
-**Success condition**
-
-When `1` is pressed in the patched binary:
-
-```
-If you have devirtualized, Success.
-```
-
-Note: the original unpatched binary also prints this message when `1` is pressed, because the VM itself executes the correct logic. The goal is to replace the VM entry stub with recovered native code and verify that the patched binary still reaches the same result without going through the VMProtect interpreter.
-
-More levels with additional VMProtect protection layers (mutation, obfuscation, anti-debug) are planned for future releases.
-
-<br>
-
-
 ## Requirements
 
 | Component | Version / Note |
